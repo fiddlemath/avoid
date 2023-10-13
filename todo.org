@@ -1,0 +1,12 @@
+* Possible changes
+To be clear, none of this code cleanup is needed for the sake of _this_ game; but it'll serve as a nice exercise in figuring out how to do similar things for the _next_ fifty games.
+
+- [ ] Refactor away `global` statements by structuring state
+- [ ] Lift event handling to the main() loop; avoid duplicating state
+- [ ] Change over to framerate independent physics, see if that fixes up animation jankiness
+- [ ] Eliminate the animation jankiness
+- [ ] Add sound effects from sfxr
+
+* Workflow stuff
+
+- [ ] setup the `purpose` package in emacs; actually get the programming workflow that I'd like for pygame
