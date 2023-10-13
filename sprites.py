@@ -1,11 +1,6 @@
 import pygame
 
-from pygame.key import (
-    K_UP,
-    K_DOWN,
-    K_LEFT,
-    K_RIGHT,
-)
+from pygame import K_UP, K_DOWN, K_LEFT, K_RIGHT
 
 # duplicated constants. ew.
 WIDTH = 800

@@ -1,12 +1,13 @@
 import pygame
-from typing import Callable, Dict
+from typing import Callable, Dict, Tuple
 
 from scene import Scene
 
-from pygame.event import KEYDOWN, KEYUP, JOYBUTTONDOWN, JOYBUTTONUP, Event, QUIT
+from pygame import KEYDOWN, KEYUP, JOYBUTTONDOWN, JOYBUTTONUP, QUIT
+from pygame.event import Event
 
 # EventPat: an event pattern
-EventPat = int | (int, int)
+EventPat = int | Tuple[int, int]
 
 
 def pat(e: pygame.event.Event) -> EventPat:
@@ -19,6 +20,7 @@ def pat(e: pygame.event.Event) -> EventPat:
 
 
 # Fonts
+pygame.init()
 BIG_FONT = pygame.font.Font(None, size=64)
 WEE_FONT = pygame.font.Font(None, size=16)
 WIDTH = 800
@@ -44,10 +46,9 @@ class Game:
 
         self.event_handlers = {
             QUIT: self.quit,
-            (KEYDOWN, pygame.key.K_ESCAPE): self.quit,
+            (KEYDOWN, pygame.K_ESCAPE): self.quit,
         }
-
-        self.switch_scene(first_scene)
+        self.scene = first_scene
 
     def run(self):
         """Do the game loop. Be the game loop."""
@@ -56,16 +57,15 @@ class Game:
             self.handle_events()
             next_scene = self.scene.update()
 
-            self.scene.render(self.screen)
+            self.scene.draw(self.screen)
             pygame.display.flip()
             if next_scene:
-                self.switch_scene(next_scene)
+                self.scene = next_scene
 
             self.clock.tick(60)
 
     def quit(self):
         """Stop looping that game loop"""
-        self.scene.exit()
         self._running = False
 
     def handle_events(self):
@@ -78,13 +78,8 @@ class Game:
 
     def switch_scene(self, scene: Scene):
         """Enter the given scene, and exit the previous scene"""
-        if self.scene:
-            self.scene.exit()
-
         self.scene = scene
-        self.scene.enter()
 
     def exit(self, scene: Scene):
         """Exit the given scene"""
         # drop event handlers from scene
-        

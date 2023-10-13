@@ -4,7 +4,7 @@ from pygame.sprite import Sprite, Group
 from game import BIG_FONT, WEE_FONT, WIDTH, HEIGHT
 from sprites import Player, Enemy, Health, LevelGauge
 from random import randint, choice
-from pygame.key import K_RETURN
+from pygame import K_RETURN
 
 
 class Title(Scene):
@@ -37,6 +37,7 @@ class Play(Scene):
     SPAWN_PLAYER_DELAY = 1000  # ms
     LEVEL_DURATION = 10_000  # ms
     MAX_LEVEL = 11  # levels, an int
+    BLUE = (95, 205, 228)
 
     victory: Sprite
     health: Health
@@ -44,7 +45,6 @@ class Play(Scene):
     level_gauge: LevelGauge
 
     enemies: Group
-    hud: Group
     all_sprites: Group
 
     level_start_time: float
@@ -57,18 +57,22 @@ class Play(Scene):
 
     def __init__(self):
         self.victory = Sprite()
-        self.victory.surf = BIG_FONT.render("Victory!", True, (95, 205, 228))
+        self.victory.surf = BIG_FONT.render("Victory!", True, Play.BLUE)
         self.victory.rect = self.victory.surf.get_rect(
             centerx=WIDTH / 2, centery=HEIGHT / 2
         )
 
         self.health = Health(5)
         self.level_gauge = LevelGauge(0)
+        self.player = Player()
 
-        self.level = 0
+        self.enemies = Group()
+        self.all_sprites = Group()
+
         self.level_start_time = None  # unset until player is spawned
+        self.level = 0
         self.spawn_player_time = pygame.time.get_ticks() + Play.SPAWN_PLAYER_DELAY
-        self.spawn_enemy_time = None  # set by first update.
+        self.spawn_enemy_time = None
         self.end_game_time = None
         self.salvo_parity = 0
 
@@ -86,23 +90,25 @@ class Play(Scene):
             and t >= self.level_start_time + Play.LEVEL_DURATION
             and self.level < Play.MAX_LEVEL
         ):
+            self.level_start_time = t
             self.level += 1
 
         # Start new life?
         if self.spawn_player_time and t >= self.spawn_player_time:
+            self.spawn_player_time = None
             self.level_start_time = t
 
             self.player.add(self.all_sprites)
             self.player.rect.center = (100, HEIGHT / 2)
 
-            # clear nearby missles
-            burst = pygame.sprite.Sprite()
-            burst.rect = pygame.Rect((0, 0), (200, 100))
-            burst.rect.midleft = self.player.rect.midleft
-            pygame.sprite.spritecollide(burst, self.enemies, True)
+            # clear missiles
+            for s in self.enemies:
+                s.kill()
+            self.next_enemy_in(500)
 
         # Create enemies
-        if self.player.alive() and t >= self.spawn_enemy_time:
+        if self.player.alive() and self.spawn_enemy_time and t >= self.spawn_enemy_time:
+            self.spawn_enemy_time = None
             self.create_enemies()
 
         self.player.update()
@@ -127,10 +133,23 @@ class Play(Scene):
     def draw(self, screen):
         t = pygame.time.get_ticks()
         screen.fill((0, 0, 0))
-        if self.level >= 10 and t >= self.level_start_time + 3000:
+        if self.level >= self.MAX_LEVEL and t >= self.level_start_time + 3000:
             screen.blit(self.victory.surf, self.victory.rect)
         screen.blit(self.health.surf, self.health.rect)
         screen.blit(self.level_gauge.surf, self.level_gauge.rect)
+
+        if (
+            self.level_start_time
+            and self.player.alive()
+            and self.level < self.MAX_LEVEL
+        ):
+            progress_rect = self.level_gauge.rect.move(0, 22)
+            progress_rect.width = int(
+                progress_rect.width * (t - self.level_start_time) / self.LEVEL_DURATION
+            )
+            progress_rect.height = 4
+            pygame.draw.rect(screen, Play.BLUE, progress_rect)
+
         for s in self.all_sprites:
             screen.blit(s.surf, s.rect)
 
@@ -146,43 +165,55 @@ class Play(Scene):
 
         # The first four levels do just simple generation
         if level < 4:
-            for _ in range(self.level + 1):
+            for _ in range(self.level * 2 + 1):
                 pos = (WIDTH + randint(20, 100), randint(0, HEIGHT))
-                speed = (randint(3 + level, 8 + level), randint(-level, level))
+                speed = (randint(3, 6), randint(-level, level))
                 Enemy(pos, speed, self.all_sprites, self.enemies)
 
             if level == 3 and dist >= 100 - BREAK_DIST:
-                self.next_enemy_in(Play.LEVEL_DURATION * BREAK_DIST / 100) # the transition time break
+                self.next_enemy_in(
+                    Play.LEVEL_DURATION * BREAK_DIST / 100
+                )  # the transition time break
             else:
                 self.next_enemy_in(250)
-        
+
         elif 4 <= level < 6:  # level == 4, 5
             # jitter the columns a little bit, to eliminate safe rows
             extra = randint(-7, 7)
             for i in range(8):
-                pos = (WIDTH, (i*2 + self.salvo_parity) * HEIGHT / 15 + extra)
+                pos = (WIDTH, (i * 2 + self.salvo_parity) * HEIGHT / 15 + extra)
                 speed = (6, 0)
                 Enemy(pos, speed, self.all_sprites, self.enemies)
-            
 
+            self.salvo_parity ^= 1
             if level == 5 and dist >= 100 - BREAK_DIST:
                 self.next_enemy_in(Play.LEVEL_DURATION * BREAK_DIST / 100)
             else:
-                adjust_speed = (dist + (level - 4) * 100) / 175 # range: 0.0 (start) to 1.0 (end)
-                self.next_enemy_in(400 - 150 * adjust_speed) # start at 400, end at 250
+                adjust_speed = (
+                    dist + (level - 4) * 100
+                ) / 175  # range: 0.0 (start) to 1.0 (end)
+                self.next_enemy_in(400 - 150 * adjust_speed)  # start at 400, end at 250
 
-        elif level < 10:
+        elif level < 11:
             # fire salvos at the player
-            num = 0
-            if level <= 7:
-                num = randint(4, 7)
-            elif level == 8:
-                num = randint(3, 5)
-            else:
-                num = 2
-            
+            NUMS = {
+                6: [3, 4, 5],
+                7: [4, 5, 6, 7],
+                8: [5, 7, 9],
+                9: [3, 4, 5],
+                10: [3, 4],
+            }
+            num = choice(NUMS[level])
+
+            SPEEDS = {
+                6: [3, 5],
+                7: [3, 4, 5],
+                8: [3, 4, 5],
+                9: [3, 4, 5],
+                10: [3, 5],
+            }
+            speed_x = choice(SPEEDS[level])
             center = (WIDTH + 10, randint(0, HEIGHT))
-            speed_x = randint(5, level)
 
             # aim at the player's current position
             speed_y = int(
@@ -196,23 +227,25 @@ class Play(Scene):
                 speed_y /= 2
 
             # ... and with some imprecision
-            speed_y += choice([1,0,0,0,-1])
-            spread = choice([20, 20, 40, 40, 80, 160, 240])
+            speed_y += choice([1, 0, 0, 0, -1])
+            spread = choice([20, 20, 40, 80, 80, 160, 240])
 
             for i in range(num):
                 pos = (center[0], center[1] + (num / 2 - i) * spread)
                 Enemy(pos, (speed_x, speed_y), self.all_sprites, self.enemies)
-            
+
             # After level 8, also shoot random missiles like levels 0-3
             if level > 8:
                 pos = (WIDTH + 10, randint(0, HEIGHT))
-                speed = (randint(4, 10), randint(-3, 3))
+                speed = (randint(4, 8), randint(-3, 3))
                 Enemy(pos, speed, self.all_sprites, self.enemies)
-            
+
             # After level 9, also fire a loose missile grid
             if level > 9:
-                for i in range(3):
-                    pos = (WIDTH, (i*2 + self.salvo_parity) * HEIGHT / 5)
-                    Enemy(pos, (4, 0), self.all_sprites, self.enemies)
-            
+                self.salvo_parity = (self.salvo_parity + 1) % 4
+                if self.salvo_parity % 2 == 0:
+                    for i in range(3):
+                        pos = (WIDTH, (i * 2 + self.salvo_parity // 2) * HEIGHT / 5)
+                        Enemy(pos, (4, 0), self.all_sprites, self.enemies)
+
             self.next_enemy_in(200)
