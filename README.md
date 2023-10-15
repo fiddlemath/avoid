@@ -12,9 +12,9 @@ Victory can be achieved!
 
 # Credits
 
-Code based on [Pygame: A Primer](https://realpython.com/pygame-a-primer/).
+Code originally based on [Pygame: A Primer](https://realpython.com/pygame-a-primer/), but completely rewritten.
 
-Graphics originally from [Kenney.nl](https://kenney.nl).
+Graphics originally from [Kenney.nl](https://kenney.nl), released under a CC0 license.
 
 Modifications, level design, and code (such as they are) by m.t.elder.
 
