@@ -45,8 +45,8 @@ class Game:
         self._running = True
 
         self.event_handlers = {
-            QUIT: self.quit,
-            (KEYDOWN, pygame.K_ESCAPE): self.quit,
+            QUIT: lambda _: self.quit(),
+            (KEYDOWN, pygame.K_ESCAPE): lambda _: self.quit(),
         }
         self.scene = first_scene
 
